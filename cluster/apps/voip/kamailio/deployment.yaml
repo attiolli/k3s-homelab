@@ -34,11 +34,15 @@ spec:
             - /bin/sh
             - -c
             - |
-              sed -i "s/PSTN_GW_IP_PLACEHOLDER/${PSTN_GW_IP}/g" /etc/kamailio/kamailio-local.cfg
-              kamailio -f /etc/kamailio/kamailio.cfg -DD -E
+              cp /etc/kamailio-config/* /tmp/kamailio/
+              sed -i "s/PSTN_GW_IP_PLACEHOLDER/${PSTN_GW_IP}/g" /tmp/kamailio/kamailio.cfg
+              kamailio -f /tmp/kamailio/kamailio.cfg -DD -E
           volumeMounts:
             - name: config
-              mountPath: /etc/kamailio
+              mountPath: /etc/kamailio-config
+              readOnly: true
+            - name: kamailio-run
+              mountPath: /tmp/kamailio
           resources:
             requests:
               memory: "64Mi"
@@ -46,7 +50,19 @@ spec:
             limits:
               memory: "256Mi"
               cpu: "200m"
+      initContainers:
+        - name: init-config
+          image: busybox
+          command:
+            - sh
+            - -c
+            - mkdir -p /tmp/kamailio
+          volumeMounts:
+            - name: kamailio-run
+              mountPath: /tmp/kamailio
       volumes:
         - name: config
           configMap:
             name: kamailio-config
+        - name: kamailio-run
+          emptyDir: {}

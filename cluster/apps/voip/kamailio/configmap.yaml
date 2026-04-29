@@ -14,6 +14,9 @@ data:
     fork=yes
     children=4
 
+    # PSTN GW - replaced at startup from secret
+    #!define PSTN_GW "PSTN_GW_IP_PLACEHOLDER"
+
     # ------------------ module loading ----------------------------------
     mpath="/usr/lib/x86_64-linux-gnu/kamailio/modules/"
 
@@ -40,11 +43,8 @@ data:
 
     ####### Routing Logic ########
     request_route {
-
-        # per request initial checks
         route(REQINIT);
 
-        # handle retransmissions
         if (!is_method("ACK")) {
             if(t_precheck_trans()) {
                 t_check_trans();
@@ -53,14 +53,8 @@ data:
             t_check_trans();
         }
 
-        # handle requests within SIP dialogs
         route(WITHINDLG);
-
-        # only initial requests (no To tag)
-        # record routing for in-dialog requests
         route(RECORD_ROUTE);
-
-        # forward to PSTN GW
         route(PSTN);
     }
 
@@ -85,8 +79,8 @@ data:
             sl_send_reply("200", "OK");
             exit;
         }
-        if ( is_method("ACK") ) {
-            if ( t_check_trans() ) {
+        if (is_method("ACK")) {
+            if (t_check_trans()) {
                 route(RELAY);
                 exit;
             } else {
@@ -111,22 +105,7 @@ data:
     }
 
     route[PSTN] {
-        # strip any existing route headers
-        # forward all traffic to PSTN GW
-        $du = "sip:" + $sel(cfg_get.pstn.gw_ip) + ":5060";
+        $du = "sip:PSTN_GW_IP_PLACEHOLDER:5060";
         xlog("L_INFO", "Forwarding to PSTN GW: $du\n");
         route(RELAY);
     }
-
-    reply_route {
-        if (!t_check_trans()) {
-            sl_send_reply("503", "Service Unavailable");
-            exit;
-        }
-    }
-
-  kamailio-local.cfg: |
-    # local overrides loaded by kamailio.cfg
-    # PSTN GW IP is injected from secret via env var
-    [pstn]
-    gw_ip = PSTN_GW_IP_PLACEHOLDER
