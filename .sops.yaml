@@ -1,0 +1,4 @@
+creation_rules:
+  - path_regex: .*.sops.yaml
+    age: >-
+      age1fwnsn3k525nltu06qtjhjrk37zffucrnygv6p6akdztjhlcm5qwqwqgpjg
