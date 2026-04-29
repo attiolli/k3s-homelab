@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kamailio
+  namespace: voip
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kamailio
+  template:
+    metadata:
+      labels:
+        app: kamailio
+    spec:
+      containers:
+        - name: kamailio
+          image: ghcr.io/kamailio/kamailio:6.0.5-debian
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: sip-udp
+              containerPort: 5060
+              protocol: UDP
+            - name: sip-tcp
+              containerPort: 5060
+              protocol: TCP
+          env:
+            - name: PSTN_GW_IP
+              valueFrom:
+                secretKeyRef:
+                  name: kamailio-secret
+                  key: PSTN_GW_IP
+          command:
+            - /bin/sh
+            - -c
+            - |
+              sed -i "s/PSTN_GW_IP_PLACEHOLDER/${PSTN_GW_IP}/g" /etc/kamailio/kamailio-local.cfg
+              kamailio -f /etc/kamailio/kamailio.cfg -DD -E
+          volumeMounts:
+            - name: config
+              mountPath: /etc/kamailio
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+      volumes:
+        - name: config
+          configMap:
+            name: kamailio-config

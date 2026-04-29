@@ -1,0 +1,132 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kamailio-config
+  namespace: voip
+data:
+  kamailio.cfg: |
+    #!KAMAILIO
+
+    ####### Global Parameters #########
+    debug=2
+    log_stderror=no
+    log_facility=LOG_LOCAL0
+    fork=yes
+    children=4
+
+    # ------------------ module loading ----------------------------------
+    mpath="/usr/lib/x86_64-linux-gnu/kamailio/modules/"
+
+    loadmodule "kex.so"
+    loadmodule "corex.so"
+    loadmodule "tm.so"
+    loadmodule "tmx.so"
+    loadmodule "sl.so"
+    loadmodule "rr.so"
+    loadmodule "pv.so"
+    loadmodule "maxfwd.so"
+    loadmodule "textops.so"
+    loadmodule "siputils.so"
+    loadmodule "xlog.so"
+    loadmodule "sanity.so"
+    loadmodule "ctl.so"
+    loadmodule "jsonrpcs.so"
+
+    # ----------------- setting module-specific parameters ---------------
+    modparam("tm", "failure_reply_mode", 3)
+    modparam("tm", "fr_timer", 30000)
+    modparam("tm", "fr_inv_timer", 120000)
+    modparam("rr", "enable_full_lr", 1)
+
+    ####### Routing Logic ########
+    request_route {
+
+        # per request initial checks
+        route(REQINIT);
+
+        # handle retransmissions
+        if (!is_method("ACK")) {
+            if(t_precheck_trans()) {
+                t_check_trans();
+                exit;
+            }
+            t_check_trans();
+        }
+
+        # handle requests within SIP dialogs
+        route(WITHINDLG);
+
+        # only initial requests (no To tag)
+        # record routing for in-dialog requests
+        route(RECORD_ROUTE);
+
+        # forward to PSTN GW
+        route(PSTN);
+    }
+
+    route[REQINIT] {
+        if (!mf_process_maxfwd_header(10)) {
+            sl_send_reply("483","Too Many Hops");
+            exit;
+        }
+        if (!sanity_check("17895", "7")) {
+            xlog("Malformed SIP request from $si:$sp\n");
+            exit;
+        }
+    }
+
+    route[WITHINDLG] {
+        if (!has_totag()) return;
+        if (loose_route()) {
+            route(RELAY);
+            exit;
+        }
+        if (is_method("SUBSCRIBE")) {
+            sl_send_reply("200", "OK");
+            exit;
+        }
+        if ( is_method("ACK") ) {
+            if ( t_check_trans() ) {
+                route(RELAY);
+                exit;
+            } else {
+                exit;
+            }
+        }
+        sl_send_reply("404","Not here");
+        exit;
+    }
+
+    route[RECORD_ROUTE] {
+        if (is_method("INVITE|SUBSCRIBE")) {
+            record_route();
+        }
+    }
+
+    route[RELAY] {
+        if (!t_relay()) {
+            sl_reply_error();
+        }
+        exit;
+    }
+
+    route[PSTN] {
+        # strip any existing route headers
+        # forward all traffic to PSTN GW
+        $du = "sip:" + $sel(cfg_get.pstn.gw_ip) + ":5060";
+        xlog("L_INFO", "Forwarding to PSTN GW: $du\n");
+        route(RELAY);
+    }
+
+    reply_route {
+        if (!t_check_trans()) {
+            sl_send_reply("503", "Service Unavailable");
+            exit;
+        }
+    }
+
+  kamailio-local.cfg: |
+    # local overrides loaded by kamailio.cfg
+    # PSTN GW IP is injected from secret via env var
+    [pstn]
+    gw_ip = PSTN_GW_IP_PLACEHOLDER
