@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: kamailio
-          image: ghcr.io/kamailio/kamailio:6.0.5-debian
+          image: ghcr.io/kamailio/kamailio:6.0.1-bookworm
           imagePullPolicy: IfNotPresent
           ports:
             - name: sip-udp
