@@ -35,7 +35,7 @@ spec:
             - -c
             - |
               cp /etc/kamailio-config/* /tmp/kamailio/
-              sed -i "s/PSTN_GW_IP_PLACEHOLDER/${PSTN_GW_IP}/g" /tmp/kamailio/kamailio.cfg
+              sed -i "s/PSTN_GW_IP_PLACEHOLDER/$PSTN_GW_IP/g" /tmp/kamailio/kamailio.cfg
               kamailio -f /tmp/kamailio/kamailio.cfg -DD -E
           volumeMounts:
             - name: config
