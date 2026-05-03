@@ -14,6 +14,10 @@ data:
     fork=yes
     children=4
 
+    listen=udp:0.0.0.0:5060 advertise 10.0.44.1:5060
+    listen=tcp:0.0.0.0:5060 advertise 10.0.44.1:5060
+    alias=10.0.44.1
+
     # PSTN GW - replaced at startup from secret
     #!define PSTN_GW "PSTN_GW_IP_PLACEHOLDER"
 
@@ -93,7 +97,7 @@ data:
 
     route[RECORD_ROUTE] {
         if (is_method("INVITE|SUBSCRIBE")) {
-            record_route();
+            record_route_advertised_address("10.0.44.1");
         }
     }
 
