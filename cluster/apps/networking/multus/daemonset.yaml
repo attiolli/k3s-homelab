@@ -161,12 +161,11 @@ spec:
         - name: kube-multus
           image: ghcr.io/k8snetworkplumbingwg/multus-cni:stable-thick
           command:
-            - /thin_entrypoint
+            - /usr/src/multus-cni/bin/multus-daemon
+          args:
             - --multus-conf-file=auto
-            - --multus-autoconfig-dir=/host/etc/cni/net.d
             - --cni-conf-dir=/host/etc/cni/net.d
             - --cni-bin-dir=/host/opt/cni/bin
-            - --kubeconfig-dir=/host/etc/cni/net.d/multus.d
             - --multus-kubeconfig-file-host=/var/lib/rancher/k3s/agent/etc/cni/net.d/multus.d/multus.kubeconfig
           resources:
             requests:
