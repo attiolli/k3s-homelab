@@ -79,7 +79,8 @@ data:
       "multusConfigFile": "auto",
       "namespaceIsolation": false,
       "globalNamespaces": "default,kube-system,voip",
-      "logLevel": "debug"
+      "logLevel": "debug",
+      "logToStderr": true
     }
 ---
 apiVersion: apps/v1
@@ -110,33 +111,30 @@ spec:
           effect: NoSchedule
       serviceAccountName: multus
       initContainers:
+        # Step 1: install multus-shim and extra CNI plugins into /opt/cni/bin
         - name: install-multus-binary
           image: ghcr.io/k8snetworkplumbingwg/multus-cni:stable-thick
           command:
             - /bin/sh
             - -c
             - |
-              # Copy multus binary
-              cp /usr/src/multus-cni/bin/multus /host/opt/cni/bin/
-              cp /usr/src/multus-cni/bin/multus-daemon /host/opt/cni/bin/
-              # Symlink k3s cni multicall binary for macvlan etc
+              # Use the built-in installer for thick mode
+              /usr/src/multus-cni/bin/install_multus --type thick --dest-dir /host/opt/cni/bin
+              # Symlink k3s cni multicall binary for flannel delegates
               for plugin in macvlan ipvlan bridge host-local static flannel portmap bandwidth; do
                 if [ ! -f /host/opt/cni/bin/$plugin ]; then
                   ln -sf /var/lib/rancher/k3s/data/current/bin/cni /host/opt/cni/bin/$plugin
                 fi
               done
-              # Create multus.d dir for kubeconfig
-              mkdir -p /host/etc/cni/net.d/multus.d
-              echo "Multus binary installed successfully"
+              echo "Multus installed successfully"
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /host/opt/cni/bin
           resources:
             requests:
               cpu: "10m"
               memory: "15Mi"
-          volumeMounts:
-            - name: cni-bin
-              mountPath: /host/opt/cni/bin
-            - name: cni-conf
-              mountPath: /host/etc/cni/net.d
+        # Step 2: copy daemon config into place
         - name: install-config
           image: busybox
           command:
@@ -151,8 +149,42 @@ spec:
               mountPath: /host/etc/cni/net.d
             - name: multus-cfg
               mountPath: /tmp/multus-conf
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "10Mi"
       containers:
+        # Main container: thin_entrypoint manages the CNI config and kubeconfig
         - name: kube-multus
+          image: ghcr.io/k8snetworkplumbingwg/multus-cni:stable-thick
+          command:
+            - /usr/src/multus-cni/bin/thin_entrypoint
+          args:
+            - --cni-bin-dir=/host/opt/cni/bin
+            - --cni-conf-dir=/host/etc/cni/net.d
+            - --multus-conf-file=auto
+            - --multus-autoconfig-dir=/host/etc/cni/net.d
+            - --multus-kubeconfig-file-host=/var/lib/rancher/k3s/agent/etc/cni/net.d/multus.d/multus.kubeconfig
+            - --multus-bin-file=/host/opt/cni/bin/multus
+            - --multus-log-level=debug
+            - --multus-log-to-stderr=true
+            - --skip-multus-binary-copy=true
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "50Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: cni-conf
+              mountPath: /host/etc/cni/net.d
+            - name: cni-bin
+              mountPath: /host/opt/cni/bin
+        # Sidecar: multus-daemon handles the actual CNI requests from kubelet
+        - name: multus-daemon
           image: ghcr.io/k8snetworkplumbingwg/multus-cni:stable-thick
           command:
             - /usr/src/multus-cni/bin/multus-daemon
@@ -176,8 +208,6 @@ spec:
               mountPath: /host/run
             - name: host-var-lib-cni
               mountPath: /var/lib/cni
-            - name: multus-cfg
-              mountPath: /tmp/multus-conf
       volumes:
         - name: cni-conf
           hostPath:
