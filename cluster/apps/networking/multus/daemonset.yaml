@@ -77,6 +77,7 @@ data:
       "kubeconfig": "/host/etc/cni/net.d/multus.d/multus.kubeconfig",
       "multusAutoconfigDir": "/host/etc/cni/net.d",
       "multusConfigFile": "auto",
+      "cniVersion": "1.0.0",
       "namespaceIsolation": false,
       "globalNamespaces": "default,kube-system,voip",
       "logLevel": "debug",
