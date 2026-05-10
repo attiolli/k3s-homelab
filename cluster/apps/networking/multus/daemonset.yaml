@@ -43,7 +43,10 @@ rules:
     verbs: ["get", "list", "watch"]
   - apiGroups: [""]
     resources: ["pods", "pods/status"]
-    verbs: ["get", "update"]
+    verbs: ["get", "update", "list", "watch"]  # add list and watch
+  - apiGroups: [""]
+    resources: ["nodes"]                        # add nodes
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["", "events.k8s.io"]
     resources: ["events"]
     verbs: ["create", "patch", "update"]
