@@ -13,3 +13,4 @@ resources:
   - angelnu-charts.yaml
   - kubernetes-sigs-descheduler-charts.yaml
   - stakater.yaml
+  - rke2-charts.yaml
