@@ -70,43 +70,16 @@ metadata:
   name: multus-cni-config
   namespace: kube-system
 data:
-  cni-conf.json: |
+  daemon-config.json: |
     {
-      "name": "multus-cni-network",
-      "cniVersion": "1.0.0",
-      "type": "multus",
-      "capabilities": {
-        "portMappings": true
-      },
-      "kubeconfig": "/var/lib/rancher/k3s/agent/etc/cni/net.d/multus.d/multus.kubeconfig",
-      "delegates": [
-        {
-          "cniVersion": "1.0.0",
-          "name": "cbr0",
-          "plugins": [
-            {
-              "type": "flannel",
-              "delegate": {
-                "hairpinMode": true,
-                "forceAddress": true,
-                "isDefaultGateway": true
-              }
-            },
-            {
-              "type": "portmap",
-              "capabilities": {
-                "portMappings": true
-              }
-            },
-            {
-              "type": "bandwidth",
-              "capabilities": {
-                "bandwidth": true
-              }
-            }
-          ]
-        }
-      ]
+      "chrootDir": "/hostroot",
+      "confDir": "/host/etc/cni/net.d",
+      "binDir": "/host/opt/cni/bin",
+      "kubeconfig": "/host/etc/cni/net.d/multus.d/multus.kubeconfig",
+      "multusAutoconfigDir": "/host/etc/cni/net.d",
+      "multusConfigFile": "auto",
+      "namespaceIsolation": false,
+      "globalNamespaces": "default,kube-system,voip"
     }
 ---
 apiVersion: apps/v1
@@ -163,17 +136,7 @@ spec:
           command:
             - /usr/src/multus-cni/bin/multus-daemon
           args:
-            - --multus-conf-file=auto
-            - --cni-conf-dir=/host/etc/cni/net.d
-            - --cni-bin-dir=/host/opt/cni/bin
-            - --multus-kubeconfig-file-host=/var/lib/rancher/k3s/agent/etc/cni/net.d/multus.d/multus.kubeconfig
-          resources:
-            requests:
-              cpu: "10m"
-              memory: "50Mi"
-            limits:
-              cpu: "100m"
-              memory: "128Mi"
+            - -config=/host/etc/cni/net.d/multus.d/daemon-config.json
           securityContext:
             privileged: true
           volumeMounts:
@@ -182,7 +145,7 @@ spec:
             - name: cni-bin
               mountPath: /host/opt/cni/bin
             - name: multus-cfg
-              mountPath: /tmp/multus-conf
+              mountPath: /host/etc/cni/net.d/multus.d
       volumes:
         - name: cni-conf
           hostPath:
@@ -195,5 +158,5 @@ spec:
           configMap:
             name: multus-cni-config
             items:
-              - key: cni-conf.json
-                path: 70-multus.conf
+              - key: daemon-config.json
+                path: daemon-config.json
