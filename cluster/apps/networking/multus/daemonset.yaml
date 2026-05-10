@@ -72,14 +72,14 @@ metadata:
 data:
   daemon-config.json: |
     {
-      "chrootDir": "/hostroot",
       "confDir": "/host/etc/cni/net.d",
       "binDir": "/host/opt/cni/bin",
       "kubeconfig": "/host/etc/cni/net.d/multus.d/multus.kubeconfig",
       "multusAutoconfigDir": "/host/etc/cni/net.d",
       "multusConfigFile": "auto",
       "namespaceIsolation": false,
-      "globalNamespaces": "default,kube-system,voip"
+      "globalNamespaces": "default,kube-system,voip",
+      "logLevel": "debug"
     }
 ---
 apiVersion: apps/v1
@@ -116,12 +116,17 @@ spec:
             - /bin/sh
             - -c
             - |
+              # Copy multus binary
               cp /usr/src/multus-cni/bin/multus /host/opt/cni/bin/
-              for plugin in macvlan ipvlan bridge host-local static; do
+              cp /usr/src/multus-cni/bin/multus-daemon /host/opt/cni/bin/
+              # Symlink k3s cni multicall binary for macvlan etc
+              for plugin in macvlan ipvlan bridge host-local static flannel portmap bandwidth; do
                 if [ ! -f /host/opt/cni/bin/$plugin ]; then
                   ln -sf /var/lib/rancher/k3s/data/current/bin/cni /host/opt/cni/bin/$plugin
                 fi
               done
+              # Create multus.d dir for kubeconfig
+              mkdir -p /host/etc/cni/net.d/multus.d
               echo "Multus binary installed successfully"
           resources:
             requests:
@@ -130,6 +135,22 @@ spec:
           volumeMounts:
             - name: cni-bin
               mountPath: /host/opt/cni/bin
+            - name: cni-conf
+              mountPath: /host/etc/cni/net.d
+        - name: install-config
+          image: busybox
+          command:
+            - /bin/sh
+            - -c
+            - |
+              mkdir -p /host/etc/cni/net.d/multus.d
+              cp /tmp/multus-conf/daemon-config.json /host/etc/cni/net.d/multus.d/daemon-config.json
+              echo "Config installed"
+          volumeMounts:
+            - name: cni-conf
+              mountPath: /host/etc/cni/net.d
+            - name: multus-cfg
+              mountPath: /tmp/multus-conf
       containers:
         - name: kube-multus
           image: ghcr.io/k8snetworkplumbingwg/multus-cni:stable-thick
@@ -137,6 +158,13 @@ spec:
             - /usr/src/multus-cni/bin/multus-daemon
           args:
             - -config=/host/etc/cni/net.d/multus.d/daemon-config.json
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "50Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
           securityContext:
             privileged: true
           volumeMounts:
@@ -144,8 +172,12 @@ spec:
               mountPath: /host/etc/cni/net.d
             - name: cni-bin
               mountPath: /host/opt/cni/bin
+            - name: host-run
+              mountPath: /host/run
+            - name: host-var-lib-cni
+              mountPath: /var/lib/cni
             - name: multus-cfg
-              mountPath: /host/etc/cni/net.d/multus.d
+              mountPath: /tmp/multus-conf
       volumes:
         - name: cni-conf
           hostPath:
@@ -153,6 +185,13 @@ spec:
         - name: cni-bin
           hostPath:
             path: /opt/cni/bin
+            type: DirectoryOrCreate
+        - name: host-run
+          hostPath:
+            path: /run
+        - name: host-var-lib-cni
+          hostPath:
+            path: /var/lib/cni
             type: DirectoryOrCreate
         - name: multus-cfg
           configMap:
