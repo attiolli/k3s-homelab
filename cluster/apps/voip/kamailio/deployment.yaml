@@ -12,7 +12,16 @@ spec:
     metadata:
       labels:
         app: kamailio
+      annotations:
+        k8s.v1.cni.cncf.io/networks: kamailio-l2-net
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: kamailio
       containers:
         - name: kamailio
           image: ghcr.io/kamailio/kamailio:6.0.1-bookworm
@@ -24,6 +33,9 @@ spec:
             - name: sip-tcp
               containerPort: 5060
               protocol: TCP
+            - name: dmq-udp
+              containerPort: 5090
+              protocol: UDP
           env:
             - name: PSTN_GW_IP
               valueFrom:
