@@ -5,6 +5,7 @@ metadata:
   namespace: voip
 spec:
   replicas: 2
+  revisionHistoryLimit: 2
   selector:
     matchLabels:
       app: kamailio
@@ -22,6 +23,13 @@ spec:
           labelSelector:
             matchLabels:
               app: kamailio
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: kamailio
+              topologyKey: kubernetes.io/hostname
       containers:
         - name: kamailio
           image: ghcr.io/kamailio/kamailio:6.0.1-bookworm
