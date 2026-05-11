@@ -13,8 +13,7 @@ spec:
       "mode": "bridge",
       "ipam": {
         "type": "whereabouts",
-        "range": "10.0.40.50/24",
-        "range_end": "10.0.40.59",
+        "range": "10.0.40.48/29",
         "configuration_path": "/var/lib/rancher/k3s/agent/etc/cni/net.d/whereabouts.d/whereabouts.conf"
       }
     }
